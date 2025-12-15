@@ -7,8 +7,16 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
 
-st.set_page_config(page_title="Online Retail Clustering & Regression", layout="wide")
+# =====================
+# PAGE CONFIG
+# =====================
+st.set_page_config(
+    page_title="Online Retail Clustering & Regression",
+    layout="wide"
+)
+
 st.title("📊 Clustering & Regression Online Retail")
 
 # =====================
@@ -24,13 +32,23 @@ st.subheader("📄 Dataset Preview")
 st.dataframe(df.head())
 
 # =====================
-# DATA CLEANING
+# PREPROCESSING
 # =====================
+st.subheader("🧹 Preprocessing Data")
+
+# 1. Hapus missing CustomerID
 df = df.dropna(subset=["CustomerID"])
+
+# 2. Hapus transaksi retur
 df = df[df["Quantity"] > 0]
+
+# 3. Hapus duplikasi
 df = df.drop_duplicates()
 
+# 4. Feature Engineering
 df["TotalPrice"] = df["Quantity"] * df["UnitPrice"]
+
+st.write("Jumlah data setelah preprocessing:", df.shape[0])
 
 # =====================
 # FEATURE ENGINEERING
@@ -40,9 +58,13 @@ customer_df = df.groupby("CustomerID").agg({
     "TotalPrice": "sum"
 }).reset_index()
 
-customer_df.columns = ["CustomerID", "TotalQuantity", "TotalSpending"]
+customer_df.columns = [
+    "CustomerID",
+    "TotalQuantity",
+    "TotalSpending"
+]
 
-st.subheader("📌 Data Pelanggan (Setelah Agregasi)")
+st.subheader("📌 Data Pelanggan (Agregasi)")
 st.dataframe(customer_df.head())
 
 # =====================
@@ -56,28 +78,28 @@ scaled_data = scaler.fit_transform(
 # =====================
 # CLUSTERING (K-MEANS)
 # =====================
-k = st.slider("Jumlah Cluster (K-Means)", 2, 6, 3)
+st.subheader("📍 Clustering Pelanggan (K-Means)")
+
+k = st.slider("Jumlah Cluster", 2, 6, 3)
 
 kmeans = KMeans(n_clusters=k, random_state=42)
 customer_df["Cluster"] = kmeans.fit_predict(scaled_data)
 
-st.subheader("📍 Hasil Clustering")
-
-fig, ax = plt.subplots()
-ax.scatter(
+fig1, ax1 = plt.subplots()
+ax1.scatter(
     customer_df["TotalQuantity"],
     customer_df["TotalSpending"],
     c=customer_df["Cluster"]
 )
-ax.set_xlabel("Total Quantity")
-ax.set_ylabel("Total Spending")
-ax.set_title("Customer Segmentation (K-Means)")
-st.pyplot(fig)
+ax1.set_xlabel("Total Quantity")
+ax1.set_ylabel("Total Spending")
+ax1.set_title("Customer Segmentation")
+st.pyplot(fig1)
 
 # =====================
-# REGRESSION (ENSEMBLE METHOD)
+# REGRESSION (ENSEMBLE)
 # =====================
-st.subheader("📈 Regression: Random Forest (Ensemble Method)")
+st.subheader("📈 Regresi (Random Forest - Ensemble Method)")
 
 X = customer_df[["TotalQuantity"]]
 y = customer_df["TotalSpending"]
@@ -93,9 +115,20 @@ rf = RandomForestRegressor(
 rf.fit(X_train, y_train)
 
 # =====================
+# EVALUASI RMSE
+# =====================
+y_pred_test = rf.predict(X_test)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred_test))
+
+st.metric(
+    label="RMSE (Root Mean Squared Error)",
+    value=f"{rmse:,.2f}"
+)
+
+# =====================
 # INPUT USER
 # =====================
-st.subheader("🧮 Input Data Pelanggan Baru")
+st.subheader("🧮 Prediksi Pelanggan Baru")
 
 input_quantity = st.number_input(
     "Masukkan Total Quantity Pembelian",
@@ -104,10 +137,10 @@ input_quantity = st.number_input(
 )
 
 if st.button("🔮 Prediksi & Tentukan Cluster"):
-    # ---- REGRESSION PREDICTION
+    # Prediksi regresi
     pred_spending = rf.predict([[input_quantity]])[0]
 
-    # ---- CLUSTER PREDICTION
+    # Prediksi cluster
     new_data = pd.DataFrame(
         [[input_quantity, pred_spending]],
         columns=["TotalQuantity", "TotalSpending"]
@@ -116,23 +149,18 @@ if st.button("🔮 Prediksi & Tentukan Cluster"):
     new_scaled = scaler.transform(new_data)
     cluster_result = kmeans.predict(new_scaled)[0]
 
-    # =====================
-    # OUTPUT
-    # =====================
     st.success("✅ Hasil Prediksi")
     st.write(f"💰 **Prediksi Total Spending:** {pred_spending:,.2f}")
-    st.write(f"📍 **Masuk ke Cluster:** {cluster_result}")
+    st.write(f"📍 **Cluster Pelanggan:** {cluster_result}")
 
 # =====================
 # VISUALISASI REGRESI
 # =====================
 st.subheader("📉 Visualisasi Regresi")
 
-y_pred = rf.predict(X_test)
-
 fig2, ax2 = plt.subplots()
 ax2.scatter(X_test, y_test, label="Actual")
-ax2.scatter(X_test, y_pred, label="Predicted")
+ax2.scatter(X_test, y_pred_test, label="Predicted")
 ax2.set_xlabel("Total Quantity")
 ax2.set_ylabel("Total Spending")
 ax2.set_title("Random Forest Regression")
