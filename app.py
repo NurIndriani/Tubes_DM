@@ -9,7 +9,6 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 
 st.set_page_config(page_title="Online Retail Clustering & Regression", layout="wide")
-
 st.title("📊 Clustering & Regression Online Retail")
 
 # =====================
@@ -17,10 +16,10 @@ st.title("📊 Clustering & Regression Online Retail")
 # =====================
 @st.cache_data
 def load_data():
-    df = pd.read_excel("Online Retail.xlsx")
-    return df
+    return pd.read_excel("Online Retail.xlsx")
 
 df = load_data()
+
 st.subheader("📄 Dataset Preview")
 st.dataframe(df.head())
 
@@ -29,6 +28,7 @@ st.dataframe(df.head())
 # =====================
 df = df.dropna(subset=["CustomerID"])
 df = df[df["Quantity"] > 0]
+df = df.drop_duplicates()
 
 df["TotalPrice"] = df["Quantity"] * df["UnitPrice"]
 
@@ -46,11 +46,16 @@ st.subheader("📌 Data Pelanggan (Setelah Agregasi)")
 st.dataframe(customer_df.head())
 
 # =====================
-# CLUSTERING (K-MEANS)
+# SCALING
 # =====================
 scaler = StandardScaler()
-scaled_data = scaler.fit_transform(customer_df[["TotalQuantity", "TotalSpending"]])
+scaled_data = scaler.fit_transform(
+    customer_df[["TotalQuantity", "TotalSpending"]]
+)
 
+# =====================
+# CLUSTERING (K-MEANS)
+# =====================
 k = st.slider("Jumlah Cluster (K-Means)", 2, 6, 3)
 
 kmeans = KMeans(n_clusters=k, random_state=42)
@@ -59,7 +64,7 @@ customer_df["Cluster"] = kmeans.fit_predict(scaled_data)
 st.subheader("📍 Hasil Clustering")
 
 fig, ax = plt.subplots()
-scatter = ax.scatter(
+ax.scatter(
     customer_df["TotalQuantity"],
     customer_df["TotalSpending"],
     c=customer_df["Cluster"]
@@ -87,11 +92,44 @@ rf = RandomForestRegressor(
 )
 rf.fit(X_train, y_train)
 
-y_pred = rf.predict(X_test)
+# =====================
+# INPUT USER
+# =====================
+st.subheader("🧮 Input Data Pelanggan Baru")
+
+input_quantity = st.number_input(
+    "Masukkan Total Quantity Pembelian",
+    min_value=1,
+    step=1
+)
+
+if st.button("🔮 Prediksi & Tentukan Cluster"):
+    # ---- REGRESSION PREDICTION
+    pred_spending = rf.predict([[input_quantity]])[0]
+
+    # ---- CLUSTER PREDICTION
+    new_data = pd.DataFrame(
+        [[input_quantity, pred_spending]],
+        columns=["TotalQuantity", "TotalSpending"]
+    )
+
+    new_scaled = scaler.transform(new_data)
+    cluster_result = kmeans.predict(new_scaled)[0]
+
+    # =====================
+    # OUTPUT
+    # =====================
+    st.success("✅ Hasil Prediksi")
+    st.write(f"💰 **Prediksi Total Spending:** {pred_spending:,.2f}")
+    st.write(f"📍 **Masuk ke Cluster:** {cluster_result}")
 
 # =====================
-# VISUALIZATION REGRESSION
+# VISUALISASI REGRESI
 # =====================
+st.subheader("📉 Visualisasi Regresi")
+
+y_pred = rf.predict(X_test)
+
 fig2, ax2 = plt.subplots()
 ax2.scatter(X_test, y_test, label="Actual")
 ax2.scatter(X_test, y_pred, label="Predicted")
@@ -101,4 +139,4 @@ ax2.set_title("Random Forest Regression")
 ax2.legend()
 st.pyplot(fig2)
 
-st.success("✅ Clustering & Regression berhasil dijalankan!")
+st.success("🎉 Aplikasi berhasil dijalankan!")
